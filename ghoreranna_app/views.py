@@ -51,6 +51,9 @@ def login_view(request):
                         request.session['user_role'] = user.role
                         request.session['user_name'] = user.name
                         messages.success(request, f"Welcome back, {user.name}!")
+                        # Role-based redirect after login
+                        if user.role == 'Delivery Staff':
+                            return redirect('delivery_dashboard')
                         return redirect('home')
                     else:
                         messages.error(request, "Your account is inactive. Please contact support.")
@@ -282,6 +285,10 @@ def profile_view(request):
     if not user_id:
         messages.error(request, "Please set login to access your profile.")
         return redirect('login')
+
+    # Delivery Staff have their own dedicated portal — never show them the customer/admin profile
+    if request.session.get('user_role') == 'Delivery Staff':
+        return redirect('delivery_dashboard')
 
     user = get_object_or_404(User, pk=user_id)
     
@@ -624,7 +631,7 @@ def mark_order_delivered(request, pk):
 
         order = get_object_or_404(Order, pk=pk, user_id=user_id)
         
-        if order.order_status == 'Out for Delivery':
+        if order.order_status == 'Handed Over':
             order.order_status = 'Delivered'
             order.save()
             
@@ -743,3 +750,97 @@ def coupon_delete(request, pk):
         return redirect(reverse('profile') + '?tab=coupons')
     
     return render(request, 'coupon_confirm_delete.html', {'coupon': coupon})
+
+
+# ═══════════════════════════════════════════════════
+# Delivery Staff Portal
+# ═══════════════════════════════════════════════════
+
+def delivery_dashboard_view(request):
+    """Show the delivery staff their own assigned deliveries only."""
+    user_id = request.session.get('user_id')
+    if not user_id or request.session.get('user_role') != 'Delivery Staff':
+        messages.error(request, "Access denied. Please log in as Delivery Staff.")
+        return redirect('login')
+
+    staff = get_object_or_404(User, pk=user_id, role='Delivery Staff')
+
+    # Handle profile self-edit from the portal
+    if request.method == 'POST' and request.POST.get('edit_profile'):
+        name    = request.POST.get('name', '').strip()
+        phone   = request.POST.get('phone', '').strip()
+        address = request.POST.get('address', '').strip()
+        if name:
+            staff.name    = name
+            staff.phone   = phone
+            staff.address = address
+            staff.save()
+            request.session['user_name'] = name
+            messages.success(request, "Profile updated successfully!")
+        else:
+            messages.error(request, "Name cannot be empty.")
+        return redirect(reverse('delivery_dashboard') + '?tab=profile')
+
+    # Fetch only deliveries assigned to THIS staff member
+    my_deliveries = (
+        Delivery.objects
+        .filter(delivery_staff=staff)
+        .select_related('order__user', 'order__payment')
+        .prefetch_related('order__order_details__menu')
+        .order_by('-order__order_date')
+    )
+
+    # Split into active (not yet delivered) and history
+    active_deliveries = my_deliveries.exclude(delivery_status='Delivered')
+    past_deliveries   = my_deliveries.filter(delivery_status='Delivered')
+
+    context = {
+        'staff': staff,
+        'active_deliveries': active_deliveries,
+        'past_deliveries':   past_deliveries,
+        'total_assigned':    my_deliveries.count(),
+        'total_delivered':   past_deliveries.count(),
+        'total_active':      active_deliveries.count(),
+    }
+    return render(request, 'delivery_dashboard.html', context)
+
+
+def delivery_update_status(request, pk):
+    """Allow a delivery staff member to update the status of their OWN delivery."""
+    if request.method != 'POST':
+        return redirect('delivery_dashboard')
+
+    user_id = request.session.get('user_id')
+    if not user_id or request.session.get('user_role') != 'Delivery Staff':
+        messages.error(request, "Access denied.")
+        return redirect('login')
+
+    # Only let THIS staff update THEIR OWN delivery — ownership guard
+    delivery = get_object_or_404(Delivery, pk=pk, delivery_staff_id=user_id)
+    new_status = request.POST.get('delivery_status')
+
+    allowed_transitions = {
+        'Assigned': 'Picked Up',
+        'Picked Up': 'Handed Over',
+    }
+
+    if new_status not in allowed_transitions.values():
+        messages.error(request, "Invalid status transition.")
+        return redirect('delivery_dashboard')
+
+    # Validate forward-only transition
+    expected = allowed_transitions.get(delivery.delivery_status)
+    if new_status != expected:
+        messages.error(request, f"Cannot change status from '{delivery.delivery_status}' to '{new_status}'.")
+        return redirect('delivery_dashboard')
+
+    delivery.delivery_status = new_status
+    if new_status == 'Handed Over':
+        # Mirror on the parent Order
+        delivery.order.order_status = 'Handed Over'
+        delivery.order.save()
+
+    delivery.save()
+    messages.success(request, f"Order #{delivery.order.order_id} marked as '{new_status}'.")
+    return redirect('delivery_dashboard')
+    return render(request, 'delivery_staff_profile.html', context)

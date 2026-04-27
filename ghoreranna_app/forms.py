@@ -5,11 +5,12 @@ class RegistrationForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'}))
     confirm_password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'}))
     
-    # Exclude 'Admin' and 'Delivery Staff' from role choices on registration
+    # Exclude 'Admin' from role choices on registration; Delivery Staff can self-register
     ROLE_CHOICES_REGISTER = [
         ('Student', 'Student'),
         ('Bachelor Employee', 'Bachelor Employee'),
         ('Home Cook', 'Home Cook'),
+        ('Delivery Staff', 'Delivery Staff'),
     ]
     role = forms.ChoiceField(choices=ROLE_CHOICES_REGISTER, widget=forms.Select(attrs={'class': 'w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'}))
 

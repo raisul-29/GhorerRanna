@@ -71,6 +71,7 @@ class Order(models.Model):
         ('Accepted', 'Accepted'),
         ('Preparing', 'Preparing'),
         ('Out for Delivery', 'Out for Delivery'),
+        ('Handed Over', 'Handed Over'),
         ('Delivered', 'Delivered'),
         ('Cancelled', 'Cancelled'),
     ]
@@ -129,6 +130,7 @@ class Delivery(models.Model):
         ('Pending', 'Pending'),
         ('Assigned', 'Assigned'),
         ('Picked Up', 'Picked Up'),
+        ('Handed Over', 'Handed Over'),
         ('Delivered', 'Delivered'),
     ]
 

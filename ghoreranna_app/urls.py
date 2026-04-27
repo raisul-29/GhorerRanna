@@ -29,6 +29,9 @@ urlpatterns = [
     path('order/<int:pk>/mark-delivered/', views.mark_order_delivered, name='mark_order_delivered'),
     path('order/<int:pk>/cancel/', views.cancel_order, name='cancel_order'),
     path('validate-coupon/', views.validate_coupon, name='validate_coupon'),
+    # Delivery Staff
+    path('delivery/dashboard/', views.delivery_dashboard_view, name='delivery_dashboard'),
+    path('delivery/<int:pk>/update-status/', views.delivery_update_status, name='delivery_update_status'),
     # Admin Coupon Management
     path('manage-coupons/add/', views.coupon_add, name='coupon_add'),
     path('manage-coupons/<int:pk>/edit/', views.coupon_edit, name='coupon_edit'),
